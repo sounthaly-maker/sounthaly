@@ -178,6 +178,63 @@
         </div>
     </section>
 
+    <!-- Snake Game Section -->
+    <section id="game" class="py-24">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 reveal">
+            <div class="flex items-center gap-4 mb-12">
+                <h2 class="text-3xl font-heading font-bold text-white">Take A Break</h2>
+                <div class="h-px bg-slate-700 flex-grow"></div>
+            </div>
+            
+            <div class="bg-dark-surface rounded-3xl border border-slate-700/50 p-6 md:p-10 flex flex-col md:flex-row gap-10 items-center justify-center shadow-2xl shadow-brand-500/5">
+                
+                <!-- Game Canvas Container -->
+                <div class="relative group w-full max-w-[400px]">
+                    <canvas id="snakeCanvas" width="400" height="400" class="w-full aspect-square bg-slate-900 border-2 border-slate-700 rounded-xl shadow-inner"></canvas>
+                    
+                    <!-- Game Overlay (Start/Game Over states) -->
+                    <div id="gameOverlay" class="absolute inset-0 bg-slate-900/90 rounded-xl flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm transition-opacity duration-300 z-10">
+                        <h3 id="overlayTitle" class="text-3xl font-heading font-bold text-white mb-2">Snake</h3>
+                        <p id="overlayText" class="text-slate-400 mb-8 text-sm">Use Arrow Keys or on-screen buttons to play.</p>
+                        <button id="startBtn" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-full font-semibold transition-all shadow-lg shadow-brand-500/25 active:scale-95">Play Game</button>
+                    </div>
+                </div>
+
+                <!-- Controls & Score Sidebar -->
+                <div class="flex flex-col gap-6 w-full max-w-[280px]">
+                    
+                    <!-- Score Board -->
+                    <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50 text-center">
+                        <div class="text-brand-500 text-sm font-mono mb-1 tracking-widest">SCORE</div>
+                        <div id="scoreDisplay" class="text-5xl font-bold text-white font-mono">0</div>
+                    </div>
+                    
+                    <!-- Desktop/Main Controls -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <button id="pauseBtn" disabled class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-3 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Pause</button>
+                        <button id="restartBtn" class="border border-slate-600 hover:border-slate-400 text-white px-4 py-3 rounded-xl font-medium transition-colors">Restart</button>
+                    </div>
+
+                    <!-- Mobile D-PAD -->
+                    <div class="grid grid-cols-3 gap-2 mt-4 mx-auto w-48 md:hidden">
+                        <div class="col-start-2">
+                            <button id="btnUp" class="w-full h-14 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center active:bg-brand-500 active:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg></button>
+                        </div>
+                        <div class="col-start-1 row-start-2">
+                            <button id="btnLeft" class="w-full h-14 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center active:bg-brand-500 active:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg></button>
+                        </div>
+                        <div class="col-start-3 row-start-2">
+                            <button id="btnRight" class="w-full h-14 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center active:bg-brand-500 active:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></button>
+                        </div>
+                        <div class="col-start-2 row-start-3">
+                            <button id="btnDown" class="w-full h-14 bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center active:bg-brand-500 active:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- About Section -->
     <section id="about" class="py-24 bg-dark-surface/50">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 reveal">
@@ -351,6 +408,215 @@
         window.addEventListener("scroll", reveal);
         // Trigger once on load
         reveal();
+
+        // --- Snake Game Logic ---
+        const canvas = document.getElementById('snakeCanvas');
+        const ctx = canvas.getContext('2d');
+        const overlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayText = document.getElementById('overlayText');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        
+        // Mobile Buttons
+        const btnUp = document.getElementById('btnUp');
+        const btnDown = document.getElementById('btnDown');
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+
+        const gridSize = 20;
+        let snake = [];
+        let food = {};
+        let dx = 0;
+        let dy = -gridSize;
+        let score = 0;
+        let gameLoop;
+        let state = 'init'; // 'init', 'playing', 'paused', 'gameover'
+        let speed = 100;
+
+        function initGame() {
+            // Initial snake position (center)
+            snake = [
+                {x: 200, y: 200},
+                {x: 200, y: 220},
+                {x: 200, y: 240}
+            ];
+            dx = 0;
+            dy = -gridSize;
+            score = 0;
+            speed = 120;
+            scoreDisplay.innerText = score;
+            generateFood();
+            state = 'playing';
+            
+            overlay.classList.add('hidden');
+            pauseBtn.disabled = false;
+            pauseBtn.innerText = 'Pause';
+            
+            if (gameLoop) clearTimeout(gameLoop);
+            main();
+        }
+
+        function main() {
+            if (state !== 'playing') return;
+            
+            gameLoop = setTimeout(function onTick() {
+                clearCanvas();
+                drawFood();
+                advanceSnake();
+                drawSnake();
+                
+                if (checkCollision()) {
+                    gameOver();
+                    return;
+                }
+                
+                main();
+            }, speed);
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = '#0f172a'; // slate-900
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawSnake() {
+            snake.forEach((part, index) => {
+                // Head is brand color, body is slightly faded
+                ctx.fillStyle = index === 0 ? '#14b8a6' : '#0d9488'; 
+                ctx.strokeStyle = '#0f172a'; // match background
+                
+                // Draw rounded rectangle for smoother look
+                ctx.beginPath();
+                ctx.roundRect(part.x, part.y, gridSize, gridSize, 4);
+                ctx.fill();
+                ctx.stroke();
+            });
+        }
+
+        function advanceSnake() {
+            const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+            snake.unshift(head);
+            
+            // Check if ate food
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreDisplay.innerText = score;
+                // Increase speed slightly
+                if (speed > 50) speed -= 2; 
+                generateFood();
+            } else {
+                snake.pop(); // Remove tail
+            }
+        }
+
+        function drawFood() {
+            ctx.fillStyle = '#ec4899'; // pink-500 for high contrast food
+            ctx.beginPath();
+            // Draw a circle for food
+            ctx.arc(food.x + gridSize/2, food.y + gridSize/2, gridSize/2 - 2, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function generateFood() {
+            food.x = Math.round((Math.random() * (canvas.width - gridSize)) / gridSize) * gridSize;
+            food.y = Math.round((Math.random() * (canvas.height - gridSize)) / gridSize) * gridSize;
+            
+            // Ensure food doesn't spawn on snake
+            snake.forEach(function has_snake_eaten_food(part) {
+                const has_eaten = part.x === food.x && part.y === food.y;
+                if (has_eaten) generateFood();
+            });
+        }
+
+        function checkCollision() {
+            // Self collision
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+            }
+            // Wall collision
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x >= canvas.width;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y >= canvas.height;
+            
+            return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+        }
+
+        function gameOver() {
+            state = 'gameover';
+            overlayTitle.innerText = 'Game Over!';
+            overlayText.innerText = `You scored ${score} points.`;
+            startBtn.innerText = 'Play Again';
+            overlay.classList.remove('hidden');
+            pauseBtn.disabled = true;
+        }
+
+        function togglePause() {
+            if (state === 'playing') {
+                state = 'paused';
+                pauseBtn.innerText = 'Resume';
+                overlayTitle.innerText = 'Paused';
+                overlayText.innerText = 'Take a breather.';
+                startBtn.innerText = 'Resume Game';
+                overlay.classList.remove('hidden');
+            } else if (state === 'paused') {
+                state = 'playing';
+                pauseBtn.innerText = 'Pause';
+                overlay.classList.add('hidden');
+                main();
+            }
+        }
+
+        function changeDirection(direction) {
+            if (state !== 'playing') return;
+            const goingUp = dy === -gridSize;
+            const goingDown = dy === gridSize;
+            const goingRight = dx === gridSize;
+            const goingLeft = dx === -gridSize;
+
+            if (direction === 'LEFT' && !goingRight) { dx = -gridSize; dy = 0; }
+            if (direction === 'UP' && !goingDown) { dx = 0; dy = -gridSize; }
+            if (direction === 'RIGHT' && !goingLeft) { dx = gridSize; dy = 0; }
+            if (direction === 'DOWN' && !goingUp) { dx = 0; dy = gridSize; }
+        }
+
+        // Event Listeners
+        document.addEventListener('keydown', (e) => {
+            const LEFT_KEY = 37, RIGHT_KEY = 39, UP_KEY = 38, DOWN_KEY = 40;
+            const W_KEY = 87, A_KEY = 65, S_KEY = 83, D_KEY = 68;
+
+            if ([LEFT_KEY, RIGHT_KEY, UP_KEY, DOWN_KEY, W_KEY, A_KEY, S_KEY, D_KEY].includes(e.keyCode)) {
+                e.preventDefault(); // Prevent scrolling
+            }
+
+            if (e.keyCode === LEFT_KEY || e.keyCode === A_KEY) changeDirection('LEFT');
+            if (e.keyCode === UP_KEY || e.keyCode === W_KEY) changeDirection('UP');
+            if (e.keyCode === RIGHT_KEY || e.keyCode === D_KEY) changeDirection('RIGHT');
+            if (e.keyCode === DOWN_KEY || e.keyCode === S_KEY) changeDirection('DOWN');
+        });
+
+        // UI Controls
+        startBtn.addEventListener('click', () => {
+            if (state === 'paused') {
+                togglePause();
+            } else {
+                initGame();
+            }
+        });
+        pauseBtn.addEventListener('click', togglePause);
+        restartBtn.addEventListener('click', initGame);
+
+        // Mobile Controls Touch/Click
+        btnUp.addEventListener('click', (e) => { e.preventDefault(); changeDirection('UP'); });
+        btnDown.addEventListener('click', (e) => { e.preventDefault(); changeDirection('DOWN'); });
+        btnLeft.addEventListener('click', (e) => { e.preventDefault(); changeDirection('LEFT'); });
+        btnRight.addEventListener('click', (e) => { e.preventDefault(); changeDirection('RIGHT'); });
+        
+        // Initial setup
+        clearCanvas();
     </script>
 </body>
 </html>
